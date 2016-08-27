@@ -2,10 +2,25 @@ from __future__ import print_function
 import sys
 import tensorflow as tf 
 import importlib
-import scipy.io as sio
 import os
 import inspect
 import numpy as np
+
+## IMPORTANT: we need to pass/get more information about the learning problem, most
+## importantly the target type: for example if we have classification, we may want to use
+## a softmax layer of nrclass nodes by default while for regression we may just use a single 
+## output unit.
+## Depending on how the output is coded, our predict and predict_proba methods need to 
+## do different things as well.
+## 
+## As an alternative we could also use algorithms or building blocks from tf learn or from
+## tf-slim or from tflearn
+## https://github.com/tensorflow/tensorflow/tree/master/tensorflow/contrib/learn/python/learn
+## https://github.com/tensorflow/tensorflow/tree/master/tensorflow/contrib/slim
+## https://github.com/tflearn/tflearn
+##
+## Possible alternative: different commands and different engine for wrapping tf learn 
+## since that is much more similar to sklearn
 
 ## IMPORTANT: the option values need to be valid python expressions, and they
 ## will get evaluated! So in order to pass a string, enclose the value in quotes!
@@ -13,7 +28,7 @@ import numpy as np
 
 print("tensorflowTrain - got args: ", sys.argv, file=sys.stderr)
 if len(sys.argv) < 4:
-	sys.exit("ERROR: Not at least four arguments: [script], data base name, model base name, algorithm name and options")
+	sys.exit("ERROR: Not at least three arguments: [script], data base name, model base name, and options")
 
 data=sys.argv[1]
 if not data:
@@ -23,58 +38,31 @@ modelpath=sys.argv[2]
 if not modelpath:
 	sys.exit("ERROR: No model path")
 
-alg=sys.argv[3]
-if not alg:
-	sys.exit("ERROR: No algorithm name")
+options=sys.argv[3:]
 
-options=sys.argv[4:]
-## check that if there are options, they come in pairs!
-if len(options) % 2 != 0:
-        print("ERROR: need even number of name/value arguments for the options: got ",options,file=sys.stderr);
-	sys.exit("ERROR: tensorflowTrain aborted")
-
-## prepare the training algorithm
-## NOTE: in Python 3 we should use functions from the imp module?
-tmp = alg.rsplit('.',1)
-if not len(tmp) == 2:
-	sys.exit("ERROR: no dot in algorithm name: "+alg)
-m, c = tmp
-clazz = getattr(importlib.import_module(m),c)
-model = clazz()
-## set our own default options
-model.probability=True
-model.verbose = True
-## to make things easy, allow the attrname to start with a hyphen or not
-## Process option pairs/
-for i in range(0, len(options), 2):
-	optname = options[i]
-	optval = eval(options[i+1])
-	if optname.startswith("-"):
-		optname = optname[1:]
-	## try to set the attribute: check first if the attribute exists
-	if hasattr(model,optname):
-	    setattr(model,optname,optval)
-	else:
-		sys.exit("ERROR: cannot use option "+optname)
+## The option should control what exactly we want to do here
+## One possibility would be to have an option that takes the file "algorithm.py" from
+## modelpath and executes functions from there to create the graph.
+## If necessary, the functions could take arguments that depend on the dimensionality
+## and/or type of the data (e.g. number of input nodes based on shape, number of hidden
+## nodes based, by default, on shape etc.)
+## As a fallback, if that option is not given, we could instead import our own file from
+## the wrapper directory and just use some simple perceptron or other simple dense network.
 
 ## load the data: we expect two files in Matrix 
 ## The parameter is the prefix to which we add "dep.mtx" and "indep.mtx" to get the final names
-depfile = data+"dep.mtx"
-indepfile=data+"indep.mtx"
-weightsfile=data+"instweights.mtx"
+depfile = data+"dep.csv"
+indepfile=data+"indep.csv"
+## TODO: at some point, support, weights, costs etc
+## weightsfile=data+"instweights.csv"
 
 
-deps = sio.mmread(depfile)
-indeps = sio.mmread(indepfile)
-deps = deps.toarray().reshape(deps.shape[0],)
+deps = np.loadtxt(depfile)
+indeps = np.loadtxt(indepfile)
 
-canWeights = "sample_weight" in inspect.getargspec(model.fit).args
+shape = indeps.shape
 
-if canWeights and os.path.isfile(weightsfile):
-	weights = sio.mmread(weightsfile)
-	weights = weights.toarray().reshape(weights.shape[0],)
-	model.fit(indeps,deps,sample_weight=weights)
-else:	
-    model.fit(indeps,deps)
+print("DOING NOTHING YET, TENSORFLOW TRAINING NEEDS TO GET IMPLEMENTED",file=sys.stderr)
+print("MODEL NEEDS TO GET TRAINED MANUALLY AND SHOULD BE IN: "+modelpath)
+print("AND SHOULD HAVE NAME: tensorflow")
 
-joblib.dump(model,modelpath)
